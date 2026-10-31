@@ -1,0 +1,126 @@
+name: tech4help
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: dograh
+      POSTGRES_PASSWORD: ${TECH4HELP_DB_PASSWORD:?Run python examples/tech4help/setup.py init first}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d dograh]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    command: [redis-server, --requirepass, '${TECH4HELP_REDIS_PASSWORD:?Run setup.py init first}']
+    healthcheck:
+      test: [CMD, redis-cli, -a, '${TECH4HELP_REDIS_PASSWORD}', ping]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - redis:/data
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: tech4help
+      MINIO_ROOT_PASSWORD: ${TECH4HELP_STORAGE_PASSWORD:?Run setup.py init first}
+    ports:
+      - 127.0.0.1:9000:9000
+    volumes:
+      - recordings:/data
+    healthcheck:
+      test: [CMD, curl, -f, http://localhost:9000/minio/health/live]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    environment:
+      OLLAMA_NO_CLOUD: '1'
+      OLLAMA_CONTEXT_LENGTH: '8192'
+    ports:
+      - 127.0.0.1:11434:11434
+    volumes:
+      - ollama:/root/.ollama
+
+  speaches:
+    image: ${SPEACHES_IMAGE:-ghcr.io/speaches-ai/speaches:latest-cpu}
+    environment:
+      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: int8
+      ENABLE_UI: 'false'
+    ports:
+      - 127.0.0.1:8001:8000
+    volumes:
+      - speech-models:/home/ubuntu/.cache/huggingface/hub
+
+  api:
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    environment:
+      DEPLOYMENT_MODE: oss
+      ENVIRONMENT: local
+      LOG_LEVEL: INFO
+      BACKEND_API_ENDPOINT: http://localhost:8000
+      DATABASE_URL: postgresql+asyncpg://postgres:${TECH4HELP_DB_PASSWORD}@postgres:5432/dograh
+      REDIS_URL: redis://:${TECH4HELP_REDIS_PASSWORD}@redis:6379
+      ENABLE_AWS_S3: 'false'
+      MINIO_ENDPOINT: minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: tech4help
+      MINIO_SECRET_KEY: ${TECH4HELP_STORAGE_PASSWORD}
+      MINIO_BUCKET: voice-audio
+      MINIO_SECURE: 'false'
+      OSS_JWT_SECRET: ${TECH4HELP_JWT_SECRET:?Run setup.py init first}
+      ENABLE_TELEMETRY: 'false'
+    ports:
+      - 127.0.0.1:8000:8000
+    volumes:
+      - shared-tmp:/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/v1/health")']
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  ui:
+    build:
+      context: ../..
+      dockerfile: ui/Dockerfile
+      args:
+        ENABLE_TELEMETRY: 'false'
+    environment:
+      BACKEND_URL: http://api:8000
+      NODE_ENV: oss
+      ENABLE_TELEMETRY: 'false'
+    ports:
+      - 127.0.0.1:3010:3010
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  redis:
+  recordings:
+  ollama:
+  speech-models:
+  shared-tmp:

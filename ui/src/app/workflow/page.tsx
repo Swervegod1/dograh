@@ -1,7 +1,9 @@
+import Link from 'next/link';
 import { Suspense } from 'react';
 
 import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/client/sdk.gen';
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
+import { Button } from '@/components/ui/button';
 import { CreateWorkflowButton } from "@/components/workflow/CreateWorkflowButton";
 import { AgentFolderView } from '@/components/workflow/folders/AgentFolderView';
 import { CreateFolderButton } from '@/components/workflow/folders/CreateFolderButton';
@@ -112,7 +114,8 @@ async function PageContent() {
             <div className="mb-6">
                 <div className="flex justify-between items-center mb-6">
                     <h1 className="text-2xl font-bold">Your Agents</h1>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild><Link href="/workflow/tech4help">Tech4Help starters</Link></Button>
                         <UploadWorkflowButton />
                         <CreateFolderButton />
                         <CreateWorkflowButton />
