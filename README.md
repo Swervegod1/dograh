@@ -1,5 +1,7 @@
 # Dograh AI
 
+> **Tech4Help fork:** [Set up local AI intake for equipment donations and IT-service requests](examples/tech4help/README.md). Includes two built-in agent starters, Ollama + Speaches, and a model readiness check. Open `/workflow/tech4help` after starting this fork.
+
 **The open-source, self-hostable alternative to Vapi & Retell** — build production voice agents with a drag-and-drop workflow builder. From zero to a working bot in under 2 minutes.
 
 <p align="center">

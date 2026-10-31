@@ -226,6 +226,7 @@ class WorkflowTemplateResponse(BaseModel):
 class CreateWorkflowRequest(BaseModel):
     name: str
     workflow_definition: dict
+    workflow_configurations: dict | None = None
 
 
 class DuplicateTemplateRequest(BaseModel):
@@ -362,6 +363,24 @@ async def create_workflow(
     if trigger_path_issues:
         raise _trigger_path_validation_http_exception(trigger_path_issues)
 
+    # Apply provider settings to the first published version atomically. A
+    # separate update would only configure the draft, leaving V1 on defaults.
+    if request.workflow_configurations and request.workflow_configurations.get(
+        "model_overrides"
+    ):
+        user_config = await db_client.get_user_configurations(user.id)
+        try:
+            effective = resolve_effective_config(
+                user_config, request.workflow_configurations["model_overrides"]
+            )
+            await UserConfigurationValidator().validate(
+                effective,
+                organization_id=user.selected_organization_id,
+                created_by=user.provider_id,
+            )
+        except (ValueError, TypeError, AttributeError) as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
     # Validate trigger path uniqueness BEFORE creating the workflow so we
     # don't leave an orphaned workflow record when the trigger conflicts.
     trigger_paths = (
@@ -380,6 +399,7 @@ async def create_workflow(
         workflow_definition,
         user.id,
         user.selected_organization_id,
+        workflow_configurations=request.workflow_configurations,
     )
 
     capture_event(

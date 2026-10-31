@@ -110,6 +110,34 @@ async def workflow_with_v1(db_session, org_and_user):
 
 
 class TestWorkflowCreation:
+    async def test_creation_stores_settings_on_first_published_version(
+        self, db_session, org_and_user
+    ):
+        org, user = org_and_user
+        configurations = {
+            "model_overrides": {
+                "llm": {
+                    "provider": "speaches",
+                    "model": "qwen3:4b-instruct-2507-q4_K_M",
+                },
+                "is_realtime": False,
+            }
+        }
+        workflow = await db_session.create_workflow(
+            name="Tech4Help local intake",
+            workflow_definition=GRAPH_V1,
+            user_id=user.id,
+            organization_id=org.id,
+            workflow_configurations=configurations,
+        )
+        versions = await db_session.get_workflow_versions(workflow.id)
+        assert len(versions) == 1
+        assert versions[0].status == "published"
+        assert versions[0].workflow_configurations == configurations
+        assert workflow.workflow_configurations == configurations
+        assert workflow.released_definition_id == versions[0].id
+        assert workflow.organization_id == org.id
+
     async def test_create_workflow_produces_published_v1(
         self, db_session, org_and_user
     ):

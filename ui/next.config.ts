@@ -32,7 +32,9 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
 };
 
-export default withSentryConfig(nextConfig, {
+// A local build with telemetry disabled must also skip the build plugin's
+// telemetry and source-map uploads, not just runtime event collection.
+export default process.env.ENABLE_TELEMETRY === 'false' ? nextConfig : withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
